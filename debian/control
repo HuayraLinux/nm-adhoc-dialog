@@ -1,0 +1,15 @@
+Source: nm-adhoc-dialog
+Section: network
+Priority: optional
+Maintainer: Fernando Toledo <ragnarok@docksud.com.ar>
+Build-Depends: debhelper (>= 7), libnm-gtk-dev (>= 0.9)
+Standards-Version: 3.8.1
+
+Package: nm-adhoc-dialog
+Section: network
+Priority: optional
+Architecture: i386 amd64
+Depends: ${misc:Depends}, network-manager-gnome (>= 0.9)
+Description: Comando para lanzar el dialog de crear red
+ Este comando se utiliza para lanzar el dialogo de crear
+ redes ad-hoc en Network Manager
