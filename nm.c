@@ -12,7 +12,12 @@
 
 NMRemoteSettings *settings;
 
+/*
+ * Macros fror get translations from nm-applet.
+ */
 #define _(x) x
+#define GETTEXT_PACKAGE "nm-applet"
+#define NMALOCALEDIR    "/usr/share/locale"
 
 static GSList *
 applet_get_all_connections (NMRemoteSettings *settings2)
@@ -239,7 +244,12 @@ main (int   argc,
 	GtkWidget *dialog = NULL;
 	GError *error = NULL;
 
+	bindtextdomain (GETTEXT_PACKAGE, NMALOCALEDIR);
+	bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+
 	gtk_init (&argc, &argv);
+
+	textdomain (GETTEXT_PACKAGE);
 
 	bus = dbus_g_bus_get (DBUS_BUS_SYSTEM, &error);
 	if (!bus) {
