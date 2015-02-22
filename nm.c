@@ -19,6 +19,17 @@ NMRemoteSettings *settings;
 #define GETTEXT_PACKAGE "nm-applet"
 #define NMALOCALEDIR    "/usr/share/locale"
 
+static void
+print_json_response (gint         status,
+                     const gchar *message,
+                     const gchar *error)
+{
+	g_print ("{\"response\": { \"status\" : \"%d\", \"message\": \"%s\", \"error\"  : \"%s\"}}",
+	          status,
+	          (message != NULL) ? message : _("Unknown"),
+	          (error != NULL)   ? error   : _("Unknown"));
+}
+
 static GSList *
 applet_get_all_connections (NMRemoteSettings *settings2)
 {
@@ -42,60 +53,22 @@ applet_get_all_connections (NMRemoteSettings *settings2)
 }
 
 static void
-utils_show_error_dialog (const gchar *title,
-                         const gchar *text1,
-                         const gchar *text2,
-                         gboolean     modal,
-                         GtkWindow   *parent)
-{
-	GtkWidget *err_dialog;
-
-	g_return_if_fail (text1 != NULL);
-
-	err_dialog = gtk_message_dialog_new (parent,
-	                                     GTK_DIALOG_DESTROY_WITH_PARENT,
-	                                     GTK_MESSAGE_ERROR,
-	                                     GTK_BUTTONS_CLOSE,
-	                                     "%s",
-	                                     text1);
-
-	if (text2)
-		gtk_message_dialog_format_secondary_text (GTK_MESSAGE_DIALOG (err_dialog), "%s", text2);
-	if (title)
-		gtk_window_set_title (GTK_WINDOW (err_dialog), title);
-
-	if (modal) {
-		gtk_dialog_run (GTK_DIALOG (err_dialog));
-		gtk_widget_destroy (err_dialog);
-	}
-	else {
-		g_signal_connect (err_dialog, "delete-event",
-		                  G_CALLBACK (gtk_widget_destroy), NULL);
-		g_signal_connect (err_dialog, "response",
-		                  G_CALLBACK (gtk_widget_destroy), NULL);
-
-		gtk_widget_show_all (err_dialog);
-		gtk_window_present (GTK_WINDOW (err_dialog));
-	}
-}
-
-static void
 activate_existing_cb (NMClient           *client,
                       NMActiveConnection *active,
                       GError             *error,
                       gpointer            user_data)
 {
 	if (error) {
-		const char *text = _("Failed to activate connection");
-		char *err_text = g_strdup_printf ("(%d) %s", error->code,
-		                                  error->message ? error->message : _("Unknown error"));
-
-		g_warning ("%s: %s", text, err_text);
-		utils_show_error_dialog (_("Connection failure"), text, err_text, FALSE, NULL);
-		g_free (err_text);
+		const gchar *text = _("Failed to activate connection");
+		print_json_response (-1, text, error->message ? error->message : _("Unknown error"));
+	}
+	else {
+		const gchar *text = _("Connection activated");
+		const gchar *error = _("No error");
+		print_json_response (0, text, error);
 	}
 
-	gtk_main_quit();
+	gtk_widget_destroy (GTK_WIDGET(user_data));
 }
 
 static void
@@ -107,14 +80,15 @@ activate_new_cb (NMClient           *client,
 {
 	if (error) {
 		const char *text = _("Failed to add new connection");
-		char *err_text = g_strdup_printf ("(%d) %s", error->code,
-		                                  error->message ? error->message : _("Unknown error"));
-
-		g_warning ("%s: %s", text, err_text);
-		utils_show_error_dialog (_("Connection failure"), text, err_text, FALSE, NULL);
-		g_free (err_text);
+		print_json_response (-1, text, error->message ? error->message : _("Unknown error"));
 	}
-	gtk_main_quit();
+	else {
+		const gchar *text = _("New connection activated");
+		const gchar *error = _("No error");
+		print_json_response (0, text, error);
+	}
+
+	gtk_widget_destroy (GTK_WIDGET(user_data));
 }
 
 static void
@@ -129,8 +103,10 @@ wifi_dialog_response_cb (GtkDialog *widget,
 	NMAccessPoint *ap = NULL;
 	GSList *all, *iter;
 
-	if (response != GTK_RESPONSE_OK)
-		goto done;
+	if (response != GTK_RESPONSE_OK) {
+		gtk_widget_destroy (GTK_WIDGET(widget));
+		return;
+	}
 
 	/* nma_wifi_dialog_get_connection() returns a connection with the
 	 * refcount incremented, so the caller must remember to unref it.
@@ -158,7 +134,7 @@ wifi_dialog_response_cb (GtkDialog *widget,
 		                               device,
 		                               ap ? nm_object_get_path (NM_OBJECT (ap)) : NULL,
 		                               activate_existing_cb,
-		                               NULL);//applet);
+		                               dialog);
 	}
 	else {
 		NMSetting *s_con;
@@ -185,17 +161,13 @@ wifi_dialog_response_cb (GtkDialog *widget,
 		                                       device,
 		                                       ap ? nm_object_get_path (NM_OBJECT (ap)) : NULL,
 		                                       activate_new_cb,
-		                                       NULL);//applet);
+		                                       dialog);
 	}
 
 	/* Balance nma_wifi_dialog_get_connection() */
 	g_object_unref (connection);
 
-done:
 	gtk_widget_hide (GTK_WIDGET (dialog));
-	gtk_widget_destroy (GTK_WIDGET (dialog));
-
-	//gtk_main_quit ();
 }
 
 static void
@@ -275,8 +247,8 @@ main (int   argc,
 	if (dialog) {
 		g_signal_connect (dialog, "response",
 		                  G_CALLBACK (wifi_dialog_response_cb), client);
-		//g_signal_connect (dialog, "destroy",
-		//                  G_CALLBACK (gtk_main_quit), NULL);
+		g_signal_connect (dialog, "destroy",
+		                  G_CALLBACK (gtk_main_quit), NULL);
 
 		show_ignore_focus_stealing_prevention (dialog);
 
